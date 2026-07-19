@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Install all context menus",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/Install-AllContextMenus.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall all context menus",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/Uninstall-AllContextMenus.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Install source context exporter",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/source-context-exporter/Install-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall source context exporter",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/source-context-exporter/Uninstall-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Install XML context formatter",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/xml-context-formatter/Install-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall XML context formatter",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/xml-context-formatter/Uninstall-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "ignoredFolderNames": [
+    ".git",
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".dart_tool",
+    "build",
+    "dist",
+    "target"
+  ]
+}
