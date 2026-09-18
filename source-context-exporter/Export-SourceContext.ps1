@@ -60,13 +60,11 @@ $script:ExtensionEnabled = @{}
 $script:ShowFiles = $false
 $script:SuppressEvents = $false
 $script:ProjectTree = $null
-$script:ExtensionsPanel = $null
+$script:TextExtensionsPanel = $null
+$script:NonTextExtensionsPanel = $null
 $script:StatusText = $null
 $script:OkButton = $null
 $script:ExportButton = $null
-$script:CopyButton = $null
-$script:CopyTopButton = $null
-$script:CopyInlineButton = $null
 $script:ToggleFilesButton = $null
 $script:RootNode = $null
 $script:MutedBrush = $null
@@ -102,7 +100,7 @@ $script:LanguageByExtension = @{
     '.txt' = 'text'; '.csv' = 'csv'; '.tsv' = 'tsv'; '.log' = 'text'
 }
 
-$script:DefaultOffExtensions = @{
+$script:NonTextExtensions = @{
     '.png' = $true; '.jpg' = $true; '.jpeg' = $true; '.gif' = $true; '.webp' = $true; '.bmp' = $true; '.tif' = $true; '.tiff' = $true; '.ico' = $true
     '.pdf' = $true; '.zip' = $true; '.7z' = $true; '.rar' = $true; '.tar' = $true; '.gz' = $true; '.bz2' = $true; '.xz' = $true
     '.exe' = $true; '.dll' = $true; '.pdb' = $true; '.so' = $true; '.dylib' = $true; '.lib' = $true; '.a' = $true; '.o' = $true; '.obj' = $true
@@ -110,6 +108,8 @@ $script:DefaultOffExtensions = @{
     '.mp3' = $true; '.wav' = $true; '.flac' = $true; '.mp4' = $true; '.mov' = $true; '.avi' = $true; '.mkv' = $true
     '.woff' = $true; '.woff2' = $true; '.ttf' = $true; '.otf' = $true
     '.db' = $true; '.sqlite' = $true; '.sqlite3' = $true; '.bin' = $true; '.dat' = $true
+    '.doc' = $true; '.docx' = $true; '.xls' = $true; '.xlsx' = $true; '.ppt' = $true; '.pptx' = $true
+    '.odt' = $true; '.ods' = $true; '.odp' = $true; '.epub' = $true; '.psd' = $true
 }
 
 function New-Brush {
@@ -269,9 +269,14 @@ function Test-FolderIgnored {
     return $script:IgnoredFolderNames.Contains($DirectoryInfo.Name)
 }
 
+function Test-IsNonTextExtension {
+    param([Parameter(Mandatory = $true)][string]$Extension)
+    return $script:NonTextExtensions.ContainsKey($Extension)
+}
+
 function Get-DefaultExtensionEnabled {
     param([Parameter(Mandatory = $true)][string]$Extension)
-    if ($script:DefaultOffExtensions.ContainsKey($Extension)) {
+    if (Test-IsNonTextExtension -Extension $Extension) {
         return $false
     }
     return $true
@@ -593,10 +598,19 @@ function New-SourceContextMarkdown {
     Append-LineSafe -StringBuilder $sb -Text '---'
 
     foreach ($file in $Files) {
-        $language = Get-LanguageForNode -FileNode $file
         Append-LineSafe -StringBuilder $sb
         Append-LineSafe -StringBuilder $sb -Text ('## File: `{0}`' -f $file.RelPath)
         Append-LineSafe -StringBuilder $sb
+
+        if (Test-IsNonTextExtension -Extension $file.Extension) {
+            Append-LineSafe -StringBuilder $sb -Text ('- File name: `{0}`' -f $file.Name)
+            Append-LineSafe -StringBuilder $sb -Text ('- File type: `{0}`' -f (Format-ExtensionLabel -Extension $file.Extension))
+            Append-LineSafe -StringBuilder $sb -Text ('- File path: `{0}`' -f $file.RelPath)
+            Append-LineSafe -StringBuilder $sb
+            continue
+        }
+
+        $language = Get-LanguageForNode -FileNode $file
         Append-LineSafe -StringBuilder $sb -Text ($script:Fence + $language)
 
         try {
@@ -720,6 +734,18 @@ function New-HeaderStack {
     $checkBox.Tag = $Node
     $checkBox.ToolTip = 'Uncheck to remove this item and all child items from the export.'
 
+    if (-not $Node.IsDirectory) {
+        $fileTypeEnabled = (-not $script:ExtensionEnabled.ContainsKey($Node.Extension)) -or [bool]$script:ExtensionEnabled[$Node.Extension]
+        $checkBox.IsEnabled = $fileTypeEnabled
+
+        if (-not $fileTypeEnabled) {
+            # This is visual only. Do not mutate Node.Included or SelectionState here:
+            # disabling a file type must remember the user's previous tree selection.
+            $checkBox.IsChecked = $false
+            $checkBox.ToolTip = 'Enable this file type below to make the file selectable again. The file remains selected internally and will be restored when this file type is enabled again.'
+        }
+    }
+
     $checkBox.Add_Click({
         param($sender, $eventArgs)
         if ($script:SuppressEvents) { return }
@@ -840,24 +866,69 @@ function Update-Status {
         $script:ExportButton.IsEnabled = $hasSelectedFiles
     }
 
-    if ($script:CopyButton -ne $null) {
-        $script:CopyButton.IsEnabled = $hasSelectedFiles
-    }
-
-    if ($script:CopyTopButton -ne $null) {
-        $script:CopyTopButton.IsEnabled = $hasSelectedFiles
-    }
-
-    if ($script:CopyInlineButton -ne $null) {
-        $script:CopyInlineButton.IsEnabled = $hasSelectedFiles
-    }
 }
 
-function Update-ExtensionPanel {
-    if ($script:ExtensionsPanel -eq $null) { return }
+function Add-EmptyExtensionPanelText {
+    param(
+        [Parameter(Mandatory = $true)][object]$Panel,
+        [Parameter(Mandatory = $true)][string]$Text
+    )
 
-    $script:ExtensionsPanel.Children.Clear()
-    $counts = @{}
+    $emptyText = New-Object System.Windows.Controls.TextBlock
+    $emptyText.Text = $Text
+    $emptyText.Foreground = $script:MutedBrush
+    [void]$Panel.Children.Add($emptyText)
+}
+
+function Add-ExtensionOption {
+    param(
+        [Parameter(Mandatory = $true)][object]$Panel,
+        [Parameter(Mandatory = $true)][string]$Extension,
+        [Parameter(Mandatory = $true)][int]$Count,
+        [Parameter(Mandatory = $true)][bool]$IsNonText
+    )
+
+    if (-not $script:ExtensionEnabled.ContainsKey($Extension)) {
+        $script:ExtensionEnabled[$Extension] = Get-DefaultExtensionEnabled -Extension $Extension
+    }
+
+    $checkBox = New-Object System.Windows.Controls.CheckBox
+    $checkBox.Margin = New-Object System.Windows.Thickness -ArgumentList 0, 0, 14, 8
+    $checkBox.Padding = New-Object System.Windows.Thickness -ArgumentList 6, 2, 6, 2
+    $checkBox.Tag = $Extension
+    $checkBox.IsChecked = [bool]$script:ExtensionEnabled[$Extension]
+    $checkBox.Content = ('{0} ({1})' -f (Format-ExtensionLabel -Extension $Extension), $Count)
+
+    $dirCount = 0
+    if ($script:ExtensionToDirectories.ContainsKey($Extension)) {
+        $dirCount = $script:ExtensionToDirectories[$Extension].Count
+    }
+
+    if ($IsNonText) {
+        $checkBox.ToolTip = ('{0} non-text files in the current selection. When disabled, matching files become unavailable in the tree but their previous selection is remembered. When enabled, only file metadata is exported. The full scan found this type in {1} folders.' -f $Count, $dirCount)
+    }
+    else {
+        $checkBox.ToolTip = ('{0} text files in the current selection. When disabled, matching files become unavailable in the tree but their previous selection is remembered. The full scan found this extension in {1} folders.' -f $Count, $dirCount)
+    }
+
+    $checkBox.Add_Click({
+        param($sender, $eventArgs)
+        if ($script:SuppressEvents) { return }
+        $extensionKey = [string]$sender.Tag
+        $script:ExtensionEnabled[$extensionKey] = ($sender.IsChecked -eq $true)
+        Refresh-TreeView -PreserveExpansion
+    })
+
+    [void]$Panel.Children.Add($checkBox)
+}
+
+function Update-ExtensionPanels {
+    if ($script:TextExtensionsPanel -eq $null -or $script:NonTextExtensionsPanel -eq $null) { return }
+
+    $script:TextExtensionsPanel.Children.Clear()
+    $script:NonTextExtensionsPanel.Children.Clear()
+    $textCounts = @{}
+    $nonTextCounts = @{}
 
     foreach ($extension in $script:ExtensionToFiles.Keys) {
         $count = 0
@@ -866,46 +937,33 @@ function Update-ExtensionPanel {
                 $count++
             }
         }
-        if ($count -gt 0) {
-            $counts[$extension] = $count
+
+        if ($count -le 0) { continue }
+
+        if (Test-IsNonTextExtension -Extension $extension) {
+            $nonTextCounts[$extension] = $count
+        }
+        else {
+            $textCounts[$extension] = $count
         }
     }
 
-    if ($counts.Count -eq 0) {
-        $emptyText = New-Object System.Windows.Controls.TextBlock
-        $emptyText.Text = 'No file extensions in the current selection.'
-        $emptyText.Foreground = $script:MutedBrush
-        [void]$script:ExtensionsPanel.Children.Add($emptyText)
-        return
+    if ($textCounts.Count -eq 0) {
+        Add-EmptyExtensionPanelText -Panel $script:TextExtensionsPanel -Text 'No text file types in the current selection.'
+    }
+    else {
+        foreach ($extension in ($textCounts.Keys | Sort-Object)) {
+            Add-ExtensionOption -Panel $script:TextExtensionsPanel -Extension $extension -Count $textCounts[$extension] -IsNonText $false
+        }
     }
 
-    foreach ($extension in ($counts.Keys | Sort-Object)) {
-        if (-not $script:ExtensionEnabled.ContainsKey($extension)) {
-            $script:ExtensionEnabled[$extension] = Get-DefaultExtensionEnabled -Extension $extension
+    if ($nonTextCounts.Count -eq 0) {
+        Add-EmptyExtensionPanelText -Panel $script:NonTextExtensionsPanel -Text 'No known non-text file types in the current selection.'
+    }
+    else {
+        foreach ($extension in ($nonTextCounts.Keys | Sort-Object)) {
+            Add-ExtensionOption -Panel $script:NonTextExtensionsPanel -Extension $extension -Count $nonTextCounts[$extension] -IsNonText $true
         }
-
-        $checkBox = New-Object System.Windows.Controls.CheckBox
-        $checkBox.Margin = New-Object System.Windows.Thickness -ArgumentList 0, 0, 14, 8
-        $checkBox.Padding = New-Object System.Windows.Thickness -ArgumentList 6, 2, 6, 2
-        $checkBox.Tag = $extension
-        $checkBox.IsChecked = [bool]$script:ExtensionEnabled[$extension]
-        $checkBox.Content = ('{0} ({1})' -f (Format-ExtensionLabel -Extension $extension), $counts[$extension])
-
-        $dirCount = 0
-        if ($script:ExtensionToDirectories.ContainsKey($extension)) {
-            $dirCount = $script:ExtensionToDirectories[$extension].Count
-        }
-        $checkBox.ToolTip = ('{0} files in the current selection. The full scan found this extension in {1} folders.' -f $counts[$extension], $dirCount)
-
-        $checkBox.Add_Click({
-            param($sender, $eventArgs)
-            if ($script:SuppressEvents) { return }
-            $extensionKey = [string]$sender.Tag
-            $script:ExtensionEnabled[$extensionKey] = ($sender.IsChecked -eq $true)
-            Update-Status
-        })
-
-        [void]$script:ExtensionsPanel.Children.Add($checkBox)
     }
 }
 
@@ -930,7 +988,7 @@ function Refresh-TreeView {
         $script:SuppressEvents = $false
     }
 
-    Update-ExtensionPanel
+    Update-ExtensionPanels
     Update-Status
 }
 
@@ -959,7 +1017,7 @@ $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Source Context Exporter"
-        Width="1040" Height="780" MinWidth="820" MinHeight="620"
+        Width="1040" Height="860" MinWidth="820" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="#F7F8FC"
         FontFamily="Segoe UI"
@@ -968,7 +1026,7 @@ $xaml = @"
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="138" />
+            <RowDefinition Height="220" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -985,7 +1043,6 @@ $xaml = @"
                     <TextBlock Text="The initial scan skips configured ignored folders, then reads folder structure, file names, and extensions only. File contents are read during export." Margin="0,4,0,0" Foreground="#667085" TextWrapping="Wrap" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16,0,0,0">
-                    <Button Name="CopyTopButton" Content="In Zwischenablage kopieren" MinWidth="160" Padding="12,7" Margin="0,0,8,0" />
                     <Button Name="ToggleFilesButton" Content="Show files" MinWidth="138" Padding="12,7" />
                 </StackPanel>
             </Grid>
@@ -995,19 +1052,31 @@ $xaml = @"
             <TreeView Name="ProjectTree" BorderThickness="0" Background="White" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" />
         </GroupBox>
 
-        <GroupBox Grid.Row="2" Header="Extensions in the current selection (checked = export)" Background="White" BorderBrush="#EAECF0" Padding="10" Margin="0,0,0,10">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Known binary formats start unchecked. When folders are unchecked, extensions that only occur there disappear." Foreground="#667085" Margin="0,0,0,8" TextWrapping="Wrap" />
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <GroupBox Grid.Row="0" Header="Text file types in the current selection (checked = export content)" Background="White" BorderBrush="#EAECF0" Padding="10" Margin="0,0,0,5">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <WrapPanel Name="ExtensionsPanel" />
+                    <WrapPanel Name="TextExtensionsPanel" />
                 </ScrollViewer>
-            </DockPanel>
-        </GroupBox>
+            </GroupBox>
+
+            <GroupBox Grid.Row="1" Header="Non-text file types (checked = allow metadata export)" Background="White" BorderBrush="#EAECF0" Padding="10" Margin="0,5,0,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Unchecked types cannot be selected in the tree. Checked types export only file name, file type, and relative file path; their contents are never read." Foreground="#667085" Margin="0,0,0,8" TextWrapping="Wrap" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel Name="NonTextExtensionsPanel" />
+                    </ScrollViewer>
+                </DockPanel>
+            </GroupBox>
+        </Grid>
 
         <Border Grid.Row="3" Background="White" CornerRadius="12" Padding="12" Margin="0,0,0,10" BorderBrush="#EAECF0" BorderThickness="1">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -1022,7 +1091,6 @@ $xaml = @"
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Output file:" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#344054" />
                 <TextBox Name="OutputPathTextBox" Grid.Row="1" Grid.Column="1" MinHeight="28" VerticalContentAlignment="Center" />
                 <Button Name="BrowseButton" Grid.Row="1" Grid.Column="2" Content="Browse..." Padding="12,5" Margin="8,0,0,0" />
-                <Button Name="CopyInlineButton" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Content="In Zwischenablage kopieren" HorizontalAlignment="Right" MinWidth="220" Padding="12,7" Margin="0,10,0,0" />
             </Grid>
         </Border>
 
@@ -1034,7 +1102,6 @@ $xaml = @"
             <TextBlock Name="StatusText" Grid.Column="0" VerticalAlignment="Center" Foreground="#475467" TextWrapping="Wrap" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Name="CancelButton" Content="Cancel" MinWidth="110" Padding="12,7" Margin="0,0,8,0" IsCancel="True" />
-                <Button Name="CopyButton" Content="In Zwischenablage kopieren" MinWidth="160" Padding="12,7" Margin="0,0,8,0" />
                 <Button Name="ExportButton" Content="Datei exportieren" MinWidth="140" Padding="12,7" Margin="0,0,8,0" />
                 <Button Name="OkButton" Content="In Zwischenablage kopieren" MinWidth="190" Padding="12,7" IsDefault="True" Background="#2563EB" Foreground="White" FontWeight="SemiBold" />
             </StackPanel>
@@ -1059,13 +1126,11 @@ if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
 }
 
 $script:ProjectTree = $script:Window.FindName('ProjectTree')
-$script:ExtensionsPanel = $script:Window.FindName('ExtensionsPanel')
+$script:TextExtensionsPanel = $script:Window.FindName('TextExtensionsPanel')
+$script:NonTextExtensionsPanel = $script:Window.FindName('NonTextExtensionsPanel')
 $script:StatusText = $script:Window.FindName('StatusText')
 $script:OkButton = $script:Window.FindName('OkButton')
 $script:ExportButton = $script:Window.FindName('ExportButton')
-$script:CopyButton = $script:Window.FindName('CopyButton')
-$script:CopyTopButton = $script:Window.FindName('CopyTopButton')
-$script:CopyInlineButton = $script:Window.FindName('CopyInlineButton')
 $script:ToggleFilesButton = $script:Window.FindName('ToggleFilesButton')
 $rootPathText = $script:Window.FindName('RootPathText')
 $outputPathTextBox = $script:Window.FindName('OutputPathTextBox')
@@ -1121,9 +1186,6 @@ $copyToClipboardHandler = {
     }
 }
 
-$script:CopyButton.Add_Click($copyToClipboardHandler)
-$script:CopyTopButton.Add_Click($copyToClipboardHandler)
-$script:CopyInlineButton.Add_Click($copyToClipboardHandler)
 $script:OkButton.Add_Click($copyToClipboardHandler)
 
 $script:ExportButton.Add_Click({
