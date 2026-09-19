@@ -42,6 +42,20 @@
       "request": "launch",
       "script": "${workspaceFolder}/xml-context-formatter/Uninstall-ContextMenu.ps1",
       "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Install C# comment line remover",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/csharp-comment-line-remover/Install-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall C# comment line remover",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/csharp-comment-line-remover/Uninstall-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
     }
   ]
 }

@@ -4,6 +4,7 @@ This repository collects small standalone Windows helper programs. Each helper l
 
 ## Projects
 
+- `csharp-comment-line-remover`: Explorer context-menu tool that recursively removes C# lines whose first non-whitespace characters are `//`.
 - `source-context-exporter`: Explorer context-menu tool that exports selected source files from a folder as LLM-friendly Markdown.
 - `xml-context-formatter`: Explorer context-menu tool that formats all `.xml` files in a folder.
 
