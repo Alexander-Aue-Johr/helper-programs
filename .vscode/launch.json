@@ -70,6 +70,20 @@
       "request": "launch",
       "script": "${workspaceFolder}/identical-file-cleaner/Uninstall-ContextMenu.ps1",
       "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Install folder diff filter",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/folder-diff-filter/Install-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall folder diff filter",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/folder-diff-filter/Uninstall-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
     }
   ]
 }

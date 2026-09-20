@@ -8,6 +8,7 @@ This repository collects small standalone Windows helper programs. Each helper l
 - `source-context-exporter`: Explorer context-menu tool that exports selected source files from a folder as LLM-friendly Markdown.
 - `xml-context-formatter`: Explorer context-menu tool that formats all `.xml` files in a folder.
 - `identical-file-cleaner`: Explorer helper with preview and progress that finds byte-identical file pairs and recycles both copies.
+- `folder-diff-filter`: Explorer helper with multi-expression preview that splits Folder B's line-level diff into feature and complementary changes.
 
 ## Install All Context Menus
 
