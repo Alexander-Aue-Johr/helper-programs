@@ -56,6 +56,20 @@
       "request": "launch",
       "script": "${workspaceFolder}/csharp-comment-line-remover/Uninstall-ContextMenu.ps1",
       "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Install identical file cleaner",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/identical-file-cleaner/Install-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall identical file cleaner",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/identical-file-cleaner/Uninstall-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
     }
   ]
 }
