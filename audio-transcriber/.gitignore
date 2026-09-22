@@ -1,0 +1,18 @@
+# Local Python/runtime state
+.venv/
+.runtime/
+.models/
+.uv-cache/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local migration/test data and accidental outputs
+local-data/
+*_transkript_*/
+*.partial.mp4
+
+# Local/runtime state for audio-transcriber
+.helper-program-import.json
+*_transcript_*/

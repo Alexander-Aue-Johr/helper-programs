@@ -216,6 +216,90 @@
         "panel": "shared",
         "clear": true
       }
+    },
+    {
+      "label": "Audio: Convert file",
+      "type": "process",
+      "command": "${workspaceFolder}\\audio-transcriber\\run.cmd",
+      "options": {
+        "cwd": "${workspaceFolder}\\audio-transcriber"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Audio: Prepare environment + Whisper model",
+      "type": "process",
+      "command": "${workspaceFolder}\\audio-transcriber\\run.cmd",
+      "args": [
+        "setup"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\audio-transcriber"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Audio: Unit tests",
+      "type": "process",
+      "command": "${workspaceFolder}\\audio-transcriber\\run.cmd",
+      "args": [
+        "test"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\audio-transcriber"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Install audio transcriber context menu",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\audio-transcriber\\Install-ContextMenu.ps1"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Uninstall audio transcriber context menu",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\audio-transcriber\\Uninstall-ContextMenu.ps1"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     }
   ]
 }

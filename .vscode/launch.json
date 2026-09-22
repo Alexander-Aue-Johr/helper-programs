@@ -84,6 +84,20 @@
       "request": "launch",
       "script": "${workspaceFolder}/folder-diff-filter/Uninstall-ContextMenu.ps1",
       "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Install audio transcriber context menu",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/audio-transcriber/Install-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Uninstall audio transcriber context menu",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/audio-transcriber/Uninstall-ContextMenu.ps1",
+      "createTemporaryIntegratedConsole": true
     }
   ]
 }
