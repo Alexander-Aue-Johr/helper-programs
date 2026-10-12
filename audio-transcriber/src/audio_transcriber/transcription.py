@@ -11,6 +11,41 @@ import time
 from .model_manager import ensure_model
 
 
+# The default Silero VAD threshold in faster-whisper 1.2.1 is 0.5. Lower
+# values make the speech detector more sensitive and are useful for quiet but
+# still audible speakers. The GUI exposes this value directly.
+DEFAULT_VAD_THRESHOLD = 0.25
+MIN_VAD_THRESHOLD = 0.05
+MAX_VAD_THRESHOLD = 0.80
+
+# Whisper has a second "no speech" decision after VAD. Keep this separate from
+# the user-facing VAD threshold: it decides whether an already admitted chunk
+# should still be treated as silence.
+QUIET_SPEECH_NO_SPEECH_THRESHOLD = 0.80
+
+
+def make_vad_parameters(vad_threshold: float = DEFAULT_VAD_THRESHOLD) -> dict:
+    # Return Silero VAD parameters for the selected GUI threshold.
+    threshold = round(float(vad_threshold), 2)
+    if not MIN_VAD_THRESHOLD <= threshold <= MAX_VAD_THRESHOLD:
+        raise ValueError(
+            f"VAD threshold must be between {MIN_VAD_THRESHOLD:.2f} and "
+            f"{MAX_VAD_THRESHOLD:.2f}; got {vad_threshold!r}."
+        )
+
+    # faster-whisper's normal hysteresis is threshold - 0.15. Preserve that
+    # relationship as the user moves the threshold instead of exposing a second
+    # technical slider that has to be kept in sync manually.
+    neg_threshold = round(max(0.0, threshold - 0.15), 2)
+    return {
+        "threshold": threshold,
+        "neg_threshold": neg_threshold,
+        "min_speech_duration_ms": 0,
+        "min_silence_duration_ms": 2000,
+        "speech_pad_ms": 600,
+    }
+
+
 def stamp(seconds, srt=False):
     ms = round(seconds * 1000)
     h, ms = divmod(ms, 3600000)
@@ -47,7 +82,12 @@ def _write_raw_exports(out: Path, rows) -> None:
             raw.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def transcribe(source: Path, out: Path, language: str = "de") -> None:
+def transcribe(
+    source: Path,
+    out: Path,
+    language: str = "de",
+    vad_threshold: float = DEFAULT_VAD_THRESHOLD,
+) -> None:
     from faster_whisper import WhisperModel
     import imageio_ffmpeg
 
@@ -56,7 +96,16 @@ def transcribe(source: Path, out: Path, language: str = "de") -> None:
     model_dir = ensure_model()
     started = time.monotonic()
     duration = media_duration(source)
+    vad_parameters = make_vad_parameters(vad_threshold)
     print(f"Duration: {duration:.1f}s", flush=True)
+    print(
+        "Quiet-speech detection: "
+        f"VAD threshold={vad_parameters['threshold']}, "
+        f"negative threshold={vad_parameters['neg_threshold']}, "
+        f"speech padding={vad_parameters['speech_pad_ms']} ms, "
+        f"Whisper no-speech threshold={QUIET_SPEECH_NO_SPEECH_THRESHOLD}",
+        flush=True,
+    )
 
     model = WhisperModel(str(model_dir), device="cpu", compute_type="int8", cpu_threads=8)
     chunks = out / "chunks"
@@ -97,6 +146,8 @@ def transcribe(source: Path, out: Path, language: str = "de") -> None:
                 task="transcribe",
                 beam_size=5,
                 vad_filter=True,
+                vad_parameters=vad_parameters,
+                no_speech_threshold=QUIET_SPEECH_NO_SPEECH_THRESHOLD,
                 condition_on_previous_text=False,
             )
             rows = []
@@ -126,6 +177,8 @@ def transcribe(source: Path, out: Path, language: str = "de") -> None:
                 "language": language,
                 "duration": duration,
                 "elapsed_seconds": time.monotonic() - started,
+                "quiet_speech_vad": dict(vad_parameters),
+                "no_speech_threshold": QUIET_SPEECH_NO_SPEECH_THRESHOLD,
             },
             indent=2,
         ),

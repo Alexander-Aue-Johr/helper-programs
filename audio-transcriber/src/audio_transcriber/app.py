@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 from .output import create_output
 from .paths import REPO_ROOT, RUNNER
 from .title import suggest_title
-from .transcription import media_duration
+from .transcription import DEFAULT_VAD_THRESHOLD, MAX_VAD_THRESHOLD, MIN_VAD_THRESHOLD, media_duration
 from .zip_recording import audio_entries, extract_audio
 
 LANGUAGES = {
@@ -49,13 +49,14 @@ class App:
         self.output = None
         self.path = tk.StringVar(value=os.environ.get("AUDIO_TRANSCRIBER_INPUT", ""))
         self.language = tk.StringVar(value="German")
+        self.vad_threshold = tk.DoubleVar(value=DEFAULT_VAD_THRESHOLD)
         self.title = tk.StringVar()
         self.status = tk.StringVar(value="Select an M4A or ZIP file and choose the spoken language.")
 
         frame = ttk.Frame(root, padding=18)
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(9, weight=1)
+        frame.rowconfigure(11, weight=1)
         ttk.Label(frame, text="Audio file or ZIP recording").grid(row=0, column=0, sticky="w")
         self.entry = ttk.Entry(frame, textvariable=self.path)
         self.entry.grid(row=1, column=0, sticky="ew", pady=(4, 12))
@@ -65,20 +66,40 @@ class App:
         self.combo = ttk.Combobox(frame, textvariable=self.language, values=list(LANGUAGES), state="readonly")
         self.combo.grid(row=3, column=0, sticky="w", pady=(4, 12))
         self.combo.bind("<MouseWheel>", lambda event: "break")
+        ttk.Label(frame, text="Speech detection threshold (VAD)").grid(row=4, column=0, sticky="w")
+        vad_row = ttk.Frame(frame)
+        vad_row.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(2, 12))
+        vad_row.columnconfigure(0, weight=1)
+        self.vad_scale = tk.Scale(
+            vad_row,
+            from_=MIN_VAD_THRESHOLD,
+            to=MAX_VAD_THRESHOLD,
+            resolution=0.05,
+            orient="horizontal",
+            variable=self.vad_threshold,
+            showvalue=True,
+            length=420,
+        )
+        self.vad_scale.grid(row=0, column=0, sticky="ew")
+        ttk.Label(
+            vad_row,
+            text="Lower = more sensitive to quiet speech. faster-whisper default: 0.50",
+        ).grid(row=1, column=0, sticky="w")
+
         ttk.Label(frame, text="Video title (optional; empty = suggest from frequent terms)").grid(
-            row=4, column=0, columnspan=2, sticky="w"
+            row=6, column=0, columnspan=2, sticky="w"
         )
         self.title_entry = ttk.Entry(frame, textvariable=self.title)
-        self.title_entry.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(4, 12))
+        self.title_entry.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(4, 12))
         ttk.Label(
             frame,
             text=(
                 "Runs locally with Whisper large-v3. Creates TXT, SRT, and an MP4 title card.\n"
                 "Results are saved next to the selected M4A or ZIP file."
             ),
-        ).grid(row=6, column=0, columnspan=2, sticky="w")
+        ).grid(row=8, column=0, columnspan=2, sticky="w")
         buttons = ttk.Frame(frame)
-        buttons.grid(row=7, column=0, columnspan=2, sticky="w", pady=12)
+        buttons.grid(row=9, column=0, columnspan=2, sticky="w", pady=12)
         self.start_button = ttk.Button(buttons, text="Start conversion", command=self.start)
         self.start_button.pack(side="left")
         self.cancel_button = ttk.Button(buttons, text="Cancel", command=self.cancel, state="disabled")
@@ -86,10 +107,10 @@ class App:
         self.open_button = ttk.Button(buttons, text="Open output folder", command=self.open_output, state="disabled")
         self.open_button.pack(side="left")
         ttk.Label(frame, textvariable=self.status, wraplength=710).grid(
-            row=8, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            row=10, column=0, columnspan=2, sticky="w", pady=(0, 8)
         )
         self.log = tk.Text(frame, height=10, wrap="word", state="disabled")
-        self.log.grid(row=9, column=0, columnspan=2, sticky="nsew")
+        self.log.grid(row=11, column=0, columnspan=2, sticky="nsew")
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(150, self.poll)
 
@@ -146,6 +167,14 @@ class App:
         if len(self.title.get()) > 200:
             messagebox.showerror("Title too long", "Please use at most 200 characters for the title.", parent=self.root)
             return
+        vad_threshold = round(float(self.vad_threshold.get()), 2)
+        if not MIN_VAD_THRESHOLD <= vad_threshold <= MAX_VAD_THRESHOLD:
+            messagebox.showerror(
+                "Invalid VAD threshold",
+                f"Choose a VAD threshold between {MIN_VAD_THRESHOLD:.2f} and {MAX_VAD_THRESHOLD:.2f}.",
+                parent=self.root,
+            )
+            return
 
         archive_entry = None
         if source.suffix.lower() == ".zip":
@@ -163,13 +192,27 @@ class App:
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
         self.cancelled.clear()
-        for widget in (self.entry, self.browse, self.combo, self.title_entry, self.start_button, self.open_button):
+        for widget in (
+            self.entry,
+            self.browse,
+            self.combo,
+            self.vad_scale,
+            self.title_entry,
+            self.start_button,
+            self.open_button,
+        ):
             widget.configure(state="disabled")
         self.cancel_button.configure(state="normal")
         self.status.set("Checking audio file …")
         threading.Thread(
             target=self.work,
-            args=(source.resolve(), LANGUAGES[self.language.get()], self.title.get().strip(), archive_entry),
+            args=(
+                source.resolve(),
+                LANGUAGES[self.language.get()],
+                self.title.get().strip(),
+                vad_threshold,
+                archive_entry,
+            ),
             daemon=True,
         ).start()
 
@@ -201,7 +244,7 @@ class App:
         if code:
             raise RuntimeError(f"Processing failed (exit code {code}). See the log for details.")
 
-    def work(self, source, language, title, archive_entry=None):
+    def work(self, source, language, title, vad_threshold, archive_entry=None):
         try:
             input_path = source
             if source.suffix.lower() == ".zip":
@@ -229,6 +272,7 @@ class App:
                         "archive_member": archive_entry[1] if archive_entry else None,
                         "language": language,
                         "requested_title": title,
+                        "vad_threshold": vad_threshold,
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -243,7 +287,19 @@ class App:
                     "Long recordings can take several hours.",
                 )
             )
-            self.run_command(["transcribe", "--source", source, "--out", self.output, "--language", language])
+            self.run_command(
+                [
+                    "transcribe",
+                    "--source",
+                    source,
+                    "--out",
+                    self.output,
+                    "--language",
+                    language,
+                    "--vad-threshold",
+                    f"{vad_threshold:.2f}",
+                ]
+            )
             self.events.put(("status", "Reviewing transcript and subtitles …"))
             self.run_command(["finish", "--out", self.output])
             title = title or suggest_title(self.output, source.stem)
@@ -335,6 +391,7 @@ class App:
                     for widget in (self.entry, self.browse, self.title_entry, self.start_button):
                         widget.configure(state="normal")
                     self.combo.configure(state="readonly")
+                    self.vad_scale.configure(state="normal")
                     self.cancel_button.configure(state="disabled")
                     self.open_button.configure(state="normal" if self.output else "disabled")
                     if kind == "error":

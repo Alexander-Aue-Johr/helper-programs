@@ -29,6 +29,27 @@ Python 3 with the standard-library `venv` module must already be available on th
 
 The Explorer launcher intentionally prepares only the Python environment before opening the dialog. This keeps a context-menu click interactive: a potentially multi-gigabyte model download never starts merely because the user opened the dialog.
 
+## Quiet speech detection
+
+The transcriber deliberately uses a more sensitive speech-detection setup than
+the `faster-whisper` defaults. This is useful for recordings where a speaker is
+still clearly audible to a listener but quieter than the surrounding speech.
+
+The GUI contains a **Speech detection threshold (VAD)** slider from `0.05`
+to `0.80`. The default is `0.25`; lower values make the detector more sensitive
+to quiet speech. `faster-whisper` itself defaults to `0.50`.
+
+The related negative/hysteresis threshold is calculated automatically as
+`threshold - 0.15` (never below `0.00`), so the user only has one sensitivity
+control to adjust. Speech padding remains `600 ms` around detected regions and
+Whisper's separate no-speech threshold remains `0.80`.
+
+These values are probability thresholds, not fixed dB volume cutoffs. VAD stays
+enabled so long silent sections are still removed before decoding. If a
+recording contains unusually strong background noise, a lower value can produce
+more false speech detections than a higher one. The selected value is written to
+`job.json` and the effective VAD settings are written to `info.json`.
+
 ## Output
 
 Results are created **next to the selected source file**. For example:

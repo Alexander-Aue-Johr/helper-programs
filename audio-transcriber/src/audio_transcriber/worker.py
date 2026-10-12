@@ -13,6 +13,7 @@ def main(argv=None) -> int:
     transcribe_parser.add_argument("--source", type=Path, required=True)
     transcribe_parser.add_argument("--out", type=Path, required=True)
     transcribe_parser.add_argument("--language", default="de")
+    transcribe_parser.add_argument("--vad-threshold", type=float, default=0.25)
 
     finish_parser = sub.add_parser("finish")
     finish_parser.add_argument("--out", type=Path, required=True)
@@ -26,7 +27,7 @@ def main(argv=None) -> int:
     if args.action == "transcribe":
         from .transcription import transcribe
 
-        transcribe(args.source, args.out, args.language)
+        transcribe(args.source, args.out, args.language, args.vad_threshold)
     elif args.action == "finish":
         from .review import finish_transcript
 
